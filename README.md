@@ -234,6 +234,79 @@ make compose-down  # docker compose down
 
 ---
 
-## License
+## Architecture Notes (Microservices Readiness)
 
-MIT
+### Single Responsibility & Layers
+- Handlers focus on HTTP concerns; services encapsulate business logic; repos handle data access; platform packages isolate infra (DB, logs, metrics).
+
+### Scalability
+- **Stateless processes**: The app is 12‑factor friendly; all state is in PostgreSQL. This enables running many replicas behind a load balancer (Docker Swarm/Kubernetes/NGINX/Traefik).
+- **Horizontal scaling**:
+  - Run N replicas; use readiness (`/healthz`) and liveness checks for safe rolling updates.
+  - Prefer surge/rolling or blue‑green/canary deployments for zero downtime.
+- **Connection pooling**:
+  - Tune `DB_MAX_CONNS` and `DB_MAX_IDLE_CONNS` per pod to avoid exhausting DB connections.
+  - Optionally place PgBouncer in front of PostgreSQL for transaction pooling.
+- **Database scaling path**:
+  - Start single instance → add read replicas for GET traffic → partition/ shard if write throughput demands it.
+  - Add targeted indexes and avoid N+1 queries. Keep queries predictable; paginate large lists.
+- **Caching**:
+  - Layer a cache (e.g., Redis) for hot reads like list endpoints; use cache keys derived from query params.
+  - Use entity‑level cache with version (optimistic locking) to invalidate precisely.
+- **Resilience patterns**:
+  - Timeouts everywhere (HTTP client and DB), retries with exponential backoff for transient errors.
+  - Circuit breakers/bulkheads (e.g., `sony/gobreaker`) to protect downstreams under failure.
+  - Idempotency keys for POST/PUT to tolerate retries without duplications.
+- **Observability**:
+  - Prometheus metrics at `/metrics`, structured logs (slog), and recommended tracing via OpenTelemetry (Jaeger/Tempo).
+  - Propagate correlation IDs (`X-Request-ID`) across boundaries; include them in logs and spans.
+- **Migrations without downtime**:
+  - Use expand/contract strategy: add new columns non‑null with defaults, backfill, deploy, then remove old paths.
+  - Ensure new app versions are backward compatible with old schema during rollout.
+- **Security & config**:
+  - Strictly via env vars; manage secrets with Vault/Secrets Manager. Prefer mTLS at the mesh/ingress for east‑west traffic.
+
+### Inter-Service Communication
+- **Synchronous (request/response)**:
+  - **REST/JSON** (current): simple, debuggable, widely compatible. Version APIs (`/v1`, `/v2`), maintain backward compatibility, and use standard HTTP semantics.
+  - **gRPC/Protobuf**: strongly typed, fast, supports streaming and deadlines; ideal for high‑throughput internal calls. Consider a thin REST->gRPC gateway for external clients.
+  - Set client‑side timeouts (e.g., 200–500ms per hop), use retries only for safe, idempotent methods.
+- **Asynchronous (event‑driven)**:
+  - Publish domain events to a broker (Kafka/RabbitMQ/NATS) for decoupled reactions (e.g., notifications, analytics).
+  - Use the **Outbox pattern** to avoid dual‑write anomalies: write domain change and an outbox row in the same DB transaction; a background relay publishes from the outbox.
+  - Ensure **idempotency** and **ordering** per aggregate (e.g., partition by `task_id`) to process events exactly‑once effectively (at‑least‑once delivery + dedupe key).
+  - Version event schemas (Protobuf/Avro/JSON‑Schema) and keep them backward compatible; use a schema registry where available.
+- **API Gateway / Service Mesh**:
+  - Gateway centralizes auth (JWT/OIDC), rate limiting, request shaping, and routing.
+  - A mesh (Envoy/Istio/Linkerd) provides mTLS, traffic policies, and uniform telemetry without app changes.
+- **Security**:
+  - Propagate identity via JWTs or mTLS SPIFFE IDs; enforce RBAC at gateway and service.
+  - Validate inputs at the edge; sanitize logs; avoid leaking PII.
+- **Consistency patterns**:
+  - For cross‑service transactions, prefer **Sagas** (choreography or orchestration). Define compensations for failed steps.
+  - Use **CQRS/read models** for aggregated views spanning multiple services.
+
+Example event (JSON) for status changes (publish on updates):
+
+```json
+{
+  "event_name": "task.status.changed",
+  "event_id": "a31d9d9b-7c2c-4b32-9b2e-2a0c1f7b5a10",
+  "occurred_at": "2025-08-08T12:34:56Z",
+  "task": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "old_status": "Pending",
+    "new_status": "InProgress",
+    "version": 2
+  }
+}
+```
+
+### Data Ownership
+- Each service owns its schema (`tasks` here). Cross-service queries avoided; use APIs/events to share state.
+
+### Extending with a User Service
+- Task service stores `user_id` foreign key; reads user details via gRPC/REST or caches from user events.
+- Commands mutate only owning service; queries aggregate via API composition or separate read models.
+
+---

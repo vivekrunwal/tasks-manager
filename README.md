@@ -234,7 +234,13 @@ make compose-down  # docker compose down
 
 ---
 
+### Architecture
+
+![Architecture Diagram (SVG)](https://www.plantuml.com/plantuml/svg/JP5FZzem4CNl_XIZd4ArY6sFgwhQ2gsW4YieeUgXxM5m1cFXsEdO2OkgVlTw55Bb46I_tvi_VZp7X9owngbuiRv5nWPqQDhWoQSgtHm1aqxeZQE99Pwn3bVh3PpGnIcvChRVRPtEyE7nKIMR7C6s9qRdO3asXi-ippRbnXsJKgXJO2YMpcPM04OOZagrg2ze28g4yJAFlOPo5MO5_540FzQ7mmxMw6j77A7C7MU_f7YTKYlyrTOPNP4f_lJbShkl7c0JZCbhFy0h9ROw3XNPAGKLSMyrmGPln0AWwhM0FRKXsXJuDc4Y2bm6Vx86IlBzq6rvCg9NLpI66BvzWN9HXt7MNHR7VOUCc-asTraSiYunbD45Cy2igBzArPZmY96Ws8MO35FrTLC8twtKxuww3BPTEeOtA4-Tf3mJ2eEcVAYbaaEUUwOkBbQC9_G89RqbOezki8j3gU7FWFdy4qYqy0Jxb-e0Y_xzufqI1GH9Xla3EKji-PFp49Fyo4tM6qtZCyUxl6moQepl2LOlUPW4g6GV-3YVZxKPHitOqZZj_i2ijztHsNY6EZHeFL2V-yR_OQXdydNNk7y0)
+
+![Sequence Diagram(SVG)](https://www.plantuml.com/plantuml/svg/LP51Jy8m5CVl_HGld32681uz619Kq1YOR4SlZ_M93LqxsyS8tzw-bJWvhCds_xt-V-tcaJ7miR4g7enhCM03yHkrFnctXo-qaHGRjWIBGCW45SO3l5X_KWfhzW4Mrf1ZrM9WKviM7SDeLLK5hD1fIs446675t5uZ9ONErDIdPLTVXrjgVJJimxdFvLLfPDnX91WLFl8-KFdntgV5Kgai0PF7lWaUeDYK5KoxsPIJR_nqR-Lc3Jklps9jEcJAJhB8M598K_cCuq0_HufyCx1Yc1uXHUOFbTiODrwJ7U2iAulWnJB1h-loULk1kAZqOJ9i4_m9Re5Da_gmQUEqen2DTqhJrNwvVJYV5CDJjHcuB2cnS9VVaiZxkzb5LgSckOV_CyAhEJbzREml)
 ## Architecture Notes (Microservices Readiness)
+
 
 ### Single Responsibility & Layers
 - Handlers focus on HTTP concerns; services encapsulate business logic; repos handle data access; platform packages isolate infra (DB, logs, metrics).

@@ -22,6 +22,8 @@ func Middleware(r chi.Router, logger *slog.Logger) {
 	r.Use(requestLogger(logger))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
+    // Normalize paths (avoid trailing slash 404s)
+    r.Use(middleware.StripSlashes)
 
 	// CORS middleware for development
 	r.Use(corsMiddleware)

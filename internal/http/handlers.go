@@ -6,30 +6,30 @@ import (
 	"net/http"
 	"strconv"
 
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"log/slog"
 
 	"task-svc/internal/config"
 	"task-svc/internal/domain"
-	"task-svc/internal/repo"
 	"task-svc/internal/service"
 	"task-svc/pkg/pagination"
 )
 
 // TaskHandler handles HTTP requests for tasks
 type TaskHandler struct {
-	service     service.TaskService
+	service          service.TaskService
 	paginationConfig config.PaginationConfig
-	logger      *slog.Logger
+	logger           *slog.Logger
 }
 
 // NewTaskHandler creates a new task handler
 func NewTaskHandler(service service.TaskService, cfg config.PaginationConfig, logger *slog.Logger) *TaskHandler {
 	return &TaskHandler{
-		service:     service,
+		service:          service,
 		paginationConfig: cfg,
-		logger:      logger,
+		logger:           logger,
 	}
 }
 
@@ -65,27 +65,26 @@ func (h *TaskHandler) respondWithError(w http.ResponseWriter, status int, code, 
 
 // CreateTask handles POST /v1/tasks
 func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
-	var req domain.CreateTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var payload CreateTaskPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, "bad_request", "Invalid request body", nil)
 		return
 	}
-
 	// Validate the request
-	if err := Validate.Struct(req); err != nil {
+	if err := Validate.Struct(payload); err != nil {
 		validationErrors := parseValidationErrors(err)
 		h.respondWithError(w, http.StatusBadRequest, "validation_error", "Validation failed", validationErrors)
 		return
 	}
 
-	task, err := h.service.Create(r.Context(), req)
+	task, err := h.service.Create(r.Context(), payload.ToDomain())
 	if err != nil {
 		h.logger.Error("Failed to create task", "error", err)
 		h.respondWithError(w, http.StatusInternalServerError, "internal_error", "Failed to create task", nil)
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusCreated, task)
+	h.respondWithJSON(w, http.StatusCreated, fromDomainTask(*task))
 }
 
 // GetTask handles GET /v1/tasks/{id}
@@ -99,7 +98,7 @@ func (h *TaskHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.service.Get(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
+		if errors.Is(err, service.ErrNotFound) {
 			h.respondWithError(w, http.StatusNotFound, "not_found", "Task not found", nil)
 			return
 		}
@@ -108,7 +107,7 @@ func (h *TaskHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, task)
+	h.respondWithJSON(w, http.StatusOK, fromDomainTask(*task))
 }
 
 // ListTasks handles GET /v1/tasks
@@ -159,7 +158,7 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, result)
+	h.respondWithJSON(w, http.StatusOK, fromDomainTaskList(result))
 }
 
 // UpdateTask handles PUT /v1/tasks/{id}
@@ -171,36 +170,36 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req domain.UpdateTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var payload UpdateTaskPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, "bad_request", "Invalid request body", nil)
 		return
 	}
 
 	// Check for version in header if not in body
-	if req.Version == 0 {
+	if payload.Version == 0 {
 		if ifMatch := r.Header.Get("If-Match"); ifMatch != "" {
 			version, err := strconv.Atoi(ifMatch)
 			if err == nil && version > 0 {
-				req.Version = version
+				payload.Version = version
 			}
 		}
 	}
 
 	// Validate the request
-	if err := Validate.Struct(req); err != nil {
+	if err := Validate.Struct(payload); err != nil {
 		validationErrors := parseValidationErrors(err)
 		h.respondWithError(w, http.StatusBadRequest, "validation_error", "Validation failed", validationErrors)
 		return
 	}
 
-	task, err := h.service.Update(r.Context(), id, req)
+	task, err := h.service.Update(r.Context(), id, payload.ToDomain())
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
+		if errors.Is(err, service.ErrNotFound) {
 			h.respondWithError(w, http.StatusNotFound, "not_found", "Task not found", nil)
 			return
 		}
-		if errors.Is(err, repo.ErrVersionConflict) {
+		if errors.Is(err, service.ErrVersionConflict) {
 			h.respondWithError(w, http.StatusConflict, "version_conflict", "Task was modified by another request", nil)
 			return
 		}
@@ -209,7 +208,7 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, task)
+	h.respondWithJSON(w, http.StatusOK, fromDomainTask(*task))
 }
 
 // PatchTask handles PATCH /v1/tasks/{id}
@@ -221,36 +220,36 @@ func (h *TaskHandler) PatchTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req domain.PatchTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var payload PatchTaskPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, "bad_request", "Invalid request body", nil)
 		return
 	}
 
 	// Check for version in header if not in body
-	if req.Version == nil {
+	if payload.Version == nil {
 		if ifMatch := r.Header.Get("If-Match"); ifMatch != "" {
 			version, err := strconv.Atoi(ifMatch)
 			if err == nil && version > 0 {
-				req.Version = &version
+				payload.Version = &version
 			}
 		}
 	}
 
 	// Validate the request
-	if err := Validate.Struct(req); err != nil {
+	if err := Validate.Struct(payload); err != nil {
 		validationErrors := parseValidationErrors(err)
 		h.respondWithError(w, http.StatusBadRequest, "validation_error", "Validation failed", validationErrors)
 		return
 	}
 
-	task, err := h.service.Patch(r.Context(), id, req)
+	task, err := h.service.Patch(r.Context(), id, payload.ToDomain())
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
+		if errors.Is(err, service.ErrNotFound) {
 			h.respondWithError(w, http.StatusNotFound, "not_found", "Task not found", nil)
 			return
 		}
-		if errors.Is(err, repo.ErrVersionConflict) {
+		if errors.Is(err, service.ErrVersionConflict) {
 			h.respondWithError(w, http.StatusConflict, "version_conflict", "Task was modified by another request", nil)
 			return
 		}
@@ -259,7 +258,7 @@ func (h *TaskHandler) PatchTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, task)
+	h.respondWithJSON(w, http.StatusOK, fromDomainTask(*task))
 }
 
 // DeleteTask handles DELETE /v1/tasks/{id}
@@ -310,7 +309,7 @@ func isValidSortField(sort string) bool {
 
 // RegisterRoutes registers all task routes
 func (h *TaskHandler) RegisterRoutes(r chi.Router) {
-    r.Route("/tasks", func(r chi.Router) {
+	r.Route("/tasks", func(r chi.Router) {
 		r.Post("/", h.CreateTask)
 		r.Get("/", h.ListTasks)
 		r.Get("/{id}", h.GetTask)

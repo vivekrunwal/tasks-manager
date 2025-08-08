@@ -1,14 +1,14 @@
 package service
 
 import (
-	"context"
-	"errors"
-	"time"
+    "context"
+    "errors"
+    "time"
 
-	"github.com/google/uuid"
+    "github.com/google/uuid"
 
-	"task-svc/internal/domain"
-	"task-svc/internal/repo"
+    "task-svc/internal/domain"
+    "task-svc/internal/repo"
 )
 
 // TaskService defines the interface for task operations
@@ -23,12 +23,13 @@ type TaskService interface {
 
 // taskService implements the TaskService interface
 type taskService struct {
-	repo *repo.TaskRepo
+    repository TaskRepository
 }
 
 // NewTaskService creates a new task service
 func NewTaskService(repo *repo.TaskRepo) TaskService {
-	return &taskService{repo: repo}
+    // Accept the concrete repo but depend on the TaskRepository interface internally.
+    return &taskService{repository: repo}
 }
 
 // Create creates a new task
@@ -52,7 +53,7 @@ func (s *taskService) Create(ctx context.Context, req domain.CreateTaskRequest) 
 		Version:     1,
 	}
 	
-	if err := s.repo.Create(ctx, task); err != nil {
+    if err := s.repository.Create(ctx, task); err != nil {
 		return nil, err
 	}
 	
@@ -61,25 +62,35 @@ func (s *taskService) Create(ctx context.Context, req domain.CreateTaskRequest) 
 
 // List retrieves tasks with pagination and filtering
 func (s *taskService) List(ctx context.Context, filter domain.TaskFilter) (*domain.TaskList, error) {
-	return s.repo.List(ctx, filter)
+    return s.repository.List(ctx, filter)
 }
 
 // Get retrieves a task by ID
 func (s *taskService) Get(ctx context.Context, id uuid.UUID) (*domain.Task, error) {
-	return s.repo.Get(ctx, id)
+    t, err := s.repository.Get(ctx, id)
+    if err != nil {
+        if errors.Is(err, repo.ErrNotFound) {
+            return nil, ErrNotFound
+        }
+        return nil, err
+    }
+    return t, nil
 }
 
 // Update fully updates a task
 func (s *taskService) Update(ctx context.Context, id uuid.UUID, req domain.UpdateTaskRequest) (*domain.Task, error) {
 	// First get the existing task
-	task, err := s.repo.Get(ctx, id)
+    task, err := s.repository.Get(ctx, id)
 	if err != nil {
-		return nil, err
+        if errors.Is(err, repo.ErrNotFound) {
+            return nil, ErrNotFound
+        }
+        return nil, err
 	}
 	
 	// Check version for optimistic locking
-	if task.Version != req.Version {
-		return nil, repo.ErrVersionConflict
+    if task.Version != req.Version {
+        return nil, ErrVersionConflict
 	}
 	
 	// Update the task with new values
@@ -89,24 +100,40 @@ func (s *taskService) Update(ctx context.Context, id uuid.UUID, req domain.Updat
 	task.DueDate = req.DueDate
 	
 	// Save the updated task
-	if err := s.repo.Update(ctx, task); err != nil {
-		return nil, err
+    if err := s.repository.Update(ctx, task); err != nil {
+        if errors.Is(err, repo.ErrVersionConflict) {
+            return nil, ErrVersionConflict
+        }
+        if errors.Is(err, repo.ErrNotFound) {
+            return nil, ErrNotFound
+        }
+        return nil, err
 	}
 	
 	// Refresh the task to get the updated version and timestamps
-	return s.repo.Get(ctx, id)
+    return s.repository.Get(ctx, id)
 }
 
 // Patch partially updates a task
 func (s *taskService) Patch(ctx context.Context, id uuid.UUID, req domain.PatchTaskRequest) (*domain.Task, error) {
-	return s.repo.Patch(ctx, id, &req)
+    t, err := s.repository.Patch(ctx, id, &req)
+    if err != nil {
+        if errors.Is(err, repo.ErrVersionConflict) {
+            return nil, ErrVersionConflict
+        }
+        if errors.Is(err, repo.ErrNotFound) {
+            return nil, ErrNotFound
+        }
+        return nil, err
+    }
+    return t, nil
 }
 
 // Delete removes a task by ID
 func (s *taskService) Delete(ctx context.Context, id uuid.UUID) error {
-	err := s.repo.Delete(ctx, id)
+    err := s.repository.Delete(ctx, id)
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
+        if errors.Is(err, repo.ErrNotFound) {
 			// It's okay if the task is already gone
 			return nil
 		}

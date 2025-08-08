@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -30,9 +29,9 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Error pinging database: %v", err)
 	}
-	
+
 	fmt.Println("Connected to database successfully")
-	
+
 	// Get migration direction (up or down)
 	direction := "up"
 	if len(os.Args) > 1 {
@@ -54,7 +53,7 @@ func main() {
 		if !file.IsDir() {
 			// Check for both formats: either "0001_init.up.sql" or just "0001_init.up.sql"
 			if (direction == "up" && strings.Contains(file.Name(), ".up.sql")) ||
-			   (direction == "down" && strings.Contains(file.Name(), ".down.sql")) {
+				(direction == "down" && strings.Contains(file.Name(), ".down.sql")) {
 				migrationFiles = append(migrationFiles, file.Name())
 			}
 		}
@@ -69,19 +68,19 @@ func main() {
 	for _, fileName := range migrationFiles {
 		filePath := filepath.Join(migrationsDir, fileName)
 		fmt.Printf("Applying migration: %s\n", fileName)
-		
+
 		// Read migration file
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			log.Fatalf("Error reading migration file %s: %v", fileName, err)
 		}
-		
+
 		// Execute migration
 		_, err = db.Exec(string(content))
 		if err != nil {
 			log.Fatalf("Error executing migration %s: %v", fileName, err)
 		}
-		
+
 		fmt.Printf("Successfully applied migration: %s\n", fileName)
 	}
 

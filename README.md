@@ -1,6 +1,6 @@
 <div align="center">
 
-# task-svc • Task Management Service
+#  Task Management Service
 
 Manage tasks with a clean, production-ready Go service powered by Chi and PostgreSQL.
 

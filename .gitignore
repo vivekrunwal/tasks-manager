@@ -1,0 +1,73 @@
+# Go build artifacts
+bin/
+build/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspaces (if used)
+go.work
+go.work.sum
+
+# Coverage reports
+coverage.out
+coverage/
+*.cover
+*.coverprofile
+*.cov
+profile.cov
+cover.out
+
+# Dependencies (if vendoring is not used)
+vendor/
+
+# Logs and PIDs
+*.log
+logs/
+*.pid
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor/IDE settings
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.history/
+.vs/
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Docker
+docker-compose.override.yaml
+.docker/
+*.tar
+
+# Air (live reload) temp
+tmp/
+.air/
+.air.toml.local
+
+# Caches and temp
+*.tmp
+*.cache
+.cache/
+
+# Misc (often present even if not used here)
+node_modules/
+

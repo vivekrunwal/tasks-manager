@@ -1,0 +1,527 @@
+openapi: 3.0.3
+info:
+  title: Task Management API
+  description: API for managing tasks in the task-svc microservice
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Tasks
+    description: Task management endpoints
+  - name: Health
+    description: Health and readiness endpoints
+
+paths:
+  /v1/tasks:
+    post:
+      summary: Create a new task
+      description: Creates a new task with the provided details
+      tags:
+        - Tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    get:
+      summary: List tasks
+      description: Gets a paginated list of tasks with optional filtering and sorting
+      tags:
+        - Tasks
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number (1-based)
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Number of items per page
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/Status'
+          description: Filter tasks by status
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at, -created_at, due_date, -due_date]
+            default: -created_at
+          description: Sort field and direction (prefix with - for descending)
+      responses:
+        '200':
+          description: Task list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+    
+    get:
+      summary: Get a specific task
+      description: Retrieves the details of a specific task by ID
+      tags:
+        - Tasks
+      responses:
+        '200':
+          description: Task retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    put:
+      summary: Update a task
+      description: Fully updates a task with the provided details
+      tags:
+        - Tasks
+      parameters:
+        - name: If-Match
+          in: header
+          schema:
+            type: string
+          description: Version of the task for optimistic locking (optional if version provided in body)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Version conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    patch:
+      summary: Partially update a task
+      description: Updates specific fields of a task
+      tags:
+        - Tasks
+      parameters:
+        - name: If-Match
+          in: header
+          schema:
+            type: string
+          description: Version of the task for optimistic locking (optional if version provided in body)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchTaskRequest'
+      responses:
+        '200':
+          description: Task partially updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Version conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      summary: Delete a task
+      description: Deletes a specific task by ID
+      tags:
+        - Tasks
+      responses:
+        '204':
+          description: Task deleted successfully
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /healthz:
+    get:
+      summary: Health check
+      description: Returns the health status of the API
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '500':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /readyz:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the API
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Returns Prometheus metrics for the service
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Metrics returned successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "# HELP http_requests_total Total number of HTTP requests\n# TYPE http_requests_total counter\nhttp_requests_total{method=\"GET\",path=\"/v1/tasks\",status=\"OK\"} 5"
+
+components:
+  schemas:
+    Status:
+      type: string
+      enum: [Pending, InProgress, Completed, Cancelled]
+      description: Status of a task
+    
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - created_at
+        - updated_at
+        - version
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the task
+          example: 550e8400-e29b-41d4-a716-446655440000
+        title:
+          type: string
+          description: Title of the task
+          example: Complete the project
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          description: Detailed description of the task
+          example: Need to finish all the requirements for the project
+        status:
+          $ref: '#/components/schemas/Status'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date for the task
+          example: 2023-12-31T23:59:59Z
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the task was created
+          example: 2023-01-01T12:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the task was last updated
+          example: 2023-01-02T14:30:00Z
+        version:
+          type: integer
+          description: Version number for optimistic locking
+          example: 1
+    
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Title of the task
+          example: Complete the project
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          description: Detailed description of the task
+          example: Need to finish all the requirements for the project
+        status:
+          $ref: '#/components/schemas/Status'
+          nullable: true
+          description: Status of the task (defaults to Pending if not provided)
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date for the task
+          example: 2023-12-31T23:59:59Z
+
+    UpdateTaskRequest:
+      type: object
+      required:
+        - title
+        - status
+        - version
+      properties:
+        title:
+          type: string
+          description: Title of the task
+          example: Complete the project
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          description: Detailed description of the task
+          example: Need to finish all the requirements for the project
+        status:
+          $ref: '#/components/schemas/Status'
+          description: Status of the task
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date for the task
+          example: 2023-12-31T23:59:59Z
+        version:
+          type: integer
+          description: Version number for optimistic locking
+          example: 1
+    
+    PatchTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Title of the task
+          example: Complete the project
+          maxLength: 200
+          nullable: true
+        description:
+          type: string
+          nullable: true
+          description: Detailed description of the task
+          example: Need to finish all the requirements for the project
+        status:
+          $ref: '#/components/schemas/Status'
+          nullable: true
+          description: Status of the task
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date for the task
+          example: 2023-12-31T23:59:59Z
+        version:
+          type: integer
+          description: Version number for optimistic locking
+          example: 1
+    
+    TaskList:
+      type: object
+      required:
+        - items
+        - meta
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    
+    PageMeta:
+      type: object
+      required:
+        - page
+        - page_size
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        page_size:
+          type: integer
+          description: Number of items per page
+          example: 20
+        total_items:
+          type: integer
+          description: Total number of items
+          example: 42
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 3
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Error code
+              example: validation_error
+            message:
+              type: string
+              description: Human-readable error message
+              example: Validation failed
+            details:
+              type: object
+              additionalProperties: true
+              description: Additional error details
+              example:
+                title: "This field is required"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authorization (not required in current version, for future use)
+
+security: []  # No security requirements for the current version
